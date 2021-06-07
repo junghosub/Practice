@@ -1,0 +1,363 @@
+---
+title: "탐색적 자료분석 및 실습"
+author: "정호섭"
+date: "2021.06.07"
+output: html_document
+--- 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### No.6-1
+
+<b> 패키지 불러오기 </b>
+```{r, inclue = F}
+library(MASS)
+library(tidyverse)
+library(dplyr)
+library(reshape2)
+library(aplpack)
+library(lattice)
+```
+
+<b> 데이터 불러오기</b>
+```{r, eval = T}
+setwd("C:/Users/friend/Documents/working directory/eda")
+score = read.table('score.txt', header = FALSE)
+```
+
+```{r}
+head(score)
+```
+
+한 조사기관에서는 남편과 아내에 대하여, 사랑과 결혼에 대한 견해 차에 대한 연구를 위해 30쌍의 부부를 대상으로 설문조사를 실시하였다. 4개의 설문문항으로 구성되어 있었으며, 그 질문은 다음과 같다.
+
+① All things considered, how would you describe your contributions to the marriage:
+
+② All things considered, how would you describe your outcomes from the marriage:
+
+③ What is the level of passionate love that you feel for your partner?
+
+④ What is the level of companionate love that you feel for your partner?
+
+위 네 문항의 대답은 모두 1부터 5까지의 점수로 표현하도록 유도하였고, “전혀 없다”로부터 “매우 많다”의 정도를 나타낸다.
+
+
+<b> 컬럼명 변경 </b>
+
+``` {r}
+names(score) <- c('Q1', 'Q2', 'Q3', 'Q4', 'marry')
+```
+
+V1, V2, V3, V4, 남편과 부인을 나타내는 marry라는 변수명으로 바꿔주었다.
+
+<b> 데이터 필터링 </b>
+``` {r}
+husband <- score %>%
+  filter(marry == 'Husband')
+
+wife <- score %>%
+  filter(marry == 'Wife')
+```
+
+filter를 통해 남편, 부인 데이터를 추출하였다.
+
+<b> 벡터화 하기 </b>
+```{r}
+table(husband$Q1)
+Q1 = c(0,1,7,16,6)
+table(husband$Q2)
+Q2 = c(0,0,9,13,8)
+table(husband$Q3)
+Q3 = c(0,0,3,14,13)
+table(husband$Q4)
+Q4 = c(0,0,3,12,15)
+```
+
+table()을 통해 질문들을 값을 확인한 후, 결측치엔 0을 대입하여 벡터화 해주었다.
+
+<b> 데이터 병합 및 인덱스명 변경 </b>
+```{r}
+df <- cbind(Q1,Q2,Q3,Q4)
+rownames(df) = c('g1','g2','g3','g4','g5')
+```
+
+cbind()를 통해 벡터들을 합쳐주었고, rownames()를 통해 index명을 설정해주었다.
+
+```{r}
+head(df)
+```
+
+```{r}
+barplot(df,legend=rownames(df), main = 'Husband')
+```
+
+
+### No.6-2
+
+<b> 평균값 확인 </b>
+```{r}
+mean(wife$Q1)
+```
+
+mean()을 통해 husband, wife의 질문들의 평균값을 알아낸다.
+
+<b> 벡터화 </b>
+```{r, echo = F}
+question <- c(1,2,3,4)
+wife_coeff <- c(3.833, 4.1, 4.633, 4.533)
+husband_coeff <- c(3.9, 3.966, 4.33, 4.4)
+```
+
+```{r}
+plot(question, wife_coeff, type = 'b', ylab = '', xlab ='', ylim = c(3.6, 4.7), lty = 2)
+par(new = T)
+plot(question, husband_coeff, type = 'b', ylab = 'score', ylim = c(3.6, 4.7), main = 'Comparison between H and W')
+```
+
+<b> 모자이크 플롯 Mosaic Plot </b>
+
+<b> melting </b>
+```{r}
+score <- data.frame(score)
+score.melt <- melt(score, measure.vars = c('Q1','Q2','Q3','Q4'))
+```
+
+```{r}
+head(score.melt)
+```
+
+<b> table로 바꿔주기 </b>
+```{r}
+tab <- table(score.melt)
+```
+
+```{r}
+mosaicplot(tab, ~ marry + variable, color = T, main = 'Mosaic plot', xlab = '', ylab = '')
+```
+
+
+## 시계열 Time Series
+
+```{r}
+setwd("C:/Users/friend/Documents/working directory/eda")
+population <- read.csv('인구데이터.csv', header = T)
+head(population)
+```
+
+1985년부터 2017년까지 수집된 데이터. 
+
+연도, 출생아 수, 혼인건수, GDP, 그룹(일반사회 / 노령사회)
+
+<b> Tukey's Smoothing </b>
+```{r}
+smooth.f <- smooth(population$출생아수)
+plot(population$출생아수, lty = 'dotted',main = '연도별 출생아 수', xlab = '시점', ylab = '출생아 수', ylim = c(400,750))
+par(new = T)
+plot(smooth.f, type = 'l', xlab = '', col = 'blue', ylab = '', ylim = c(400,750))
+```
+
+<b> twiceit </b>
+```{r}
+smooth.t <- smooth(population$출생아수, twiceit = T)
+plot(population$출생아수, lty = 'dotted', main = '연도별 출생아 수', xlab = '시점', ylab = '출생아 수', ylim = c(400,750))
+par(new = T)
+plot(smooth.t, type = 'l', xlab = '', col = 'red', ylab = '', ylim = c(400,750))
+```
+
+<b> Running Median </b>
+```{r}
+smooth.r <- runmed(population$출생아수, k = 5)
+plot(population$출생아수, lty = 'dotted', main = '연도별 출생아 수(k = 5)', xlab = '시점', ylab = '출생아 수', ylim = c(400,750))
+par(new = T)
+plot(smooth.r, type = 'l', xlab = '', ylab = '', col = 'orange', ylim = c(400,750))
+```
+
+<b> 자기상관함수, 교차상관함수 </b>
+```{r}
+acf(population$출생아수, main = 'ACF')
+ccf(population$혼인건수, population$출생아수, main = 'CCF')
+```
+
+## 로버스트 회귀분석 Robust Regression
+
+<b> 데이터 불러오기 </b>
+```{r}
+setwd("C:/Users/friend/Documents/working directory/eda")
+concrete <- read.csv('concrete_strength.csv', header = T)
+head(concrete)
+```
+
+Concrete Strength Test Dataset (1030, 9) : 특정 일(day)과 주어진 혼합물에 대한 콘크리트 압축 강도 데이터
+
+1) Cement
+
+2) Slag: 제철소 고로에서 선철(탄소가 함유된 철)을 제조하면서 발생하는 생성물
+
+
+3) Fly ash: 화력발전소에서 석탄원료를 사용할 때 발생하는 부산물
+
+4) Water
+
+5) SP: 콘크리트 작업성을 개선하거나 강도를 증진시키기 위하여 첨가하는 제품
+
+6) Coarse Aggr: 콘크리트 뼈대가 되는 재료(모래, 자갈 등)로 낱알 지름이 5mm 이상
+
+7) Fine Aggr: 콘크리트 뼈대가 되는 재료(모래, 자갈 등)로 낱알 지름이 5mm 이하
+
+8) Day: 콘크리트가 마르고 지난 시간
+
+9) Strength: 콘크리트 압축 강도
+
+```{r, echo = F}
+attach(concrete)
+```
+
+<b> 산점도 </b>
+```{r}
+plot(Strength~Cement)
+```
+
+<b> 회귀식 </b>
+```{r}
+m0 <- lm(Strength~Cement)
+summary(m0)
+```
+
+<b> 산점도와 회귀식 함께 표현하기 </b>
+```{r}
+plot(Strength~Cement)
+abline(m0, col = 'red')
+```
+
+<b> 로버스트 회귀직선(M-est, LMS, LTS) </b>
+```{r}
+m1 <- rlm(Strength ~ Cement)
+m2 <- lqs(Strength ~ Cement, method = 'lms')
+m3 <- lqs(Strength ~ Cement, method = 'lts')
+```
+
+<b> 산점도와 로버스트 회귀직선 함께 표현하기 </b>
+```{r}
+plot(Strength~Cement)
+abline(m0) # 최소제곱법
+abline(m1, col = 'red') # M-est
+abline(m2, col = 'blue') # LMS
+abline(m3, col = 'green') # LTS
+```
+
+<b> 다중회귀 </b>
+```{r}
+m0 <- lm(Strength ~ Cement + Slag + Water + SP + Coarse.Aggr + Fine.Aggr + Day)
+m1 <- rlm(Strength ~ Cement + Slag + Water + SP + Coarse.Aggr + Fine.Aggr + Day)
+m2 <- lqs(Strength ~ Cement + Slag + Water + SP + Coarse.Aggr + Fine.Aggr + Day, method = 'lms')
+m3 <- lqs(Strength ~ Cement + Slag + Water + SP + Coarse.Aggr + Fine.Aggr + Day, method = 'lts')
+```
+
+<b> 잔차 박스플롯</b>
+```{r}
+boxplot(m0$residuals, m1$residuals, m2$residuals, m3$residuals, names = c('lse', 'm-est', 'lms', 'lts'))
+```
+
+<b> 잔차의 이상치를 제거한 다중회귀직선 </b>
+```{r}
+m5 <- lm(Strength ~ Cement + Slag + Water + SP + Coarse.Aggr + Fine.Aggr + Day, data = concrete[abs(m3$residuals) < 50,])
+summary(m5)
+```
+
+## 이변량 자료분석 Two Variables EDA
+
+<b> 부호 그래프 </b>
+```{r}
+symbols(Cement, Strength, circles = Cement, inches = .1)
+```
+
+<b> 커널밀도함수 </b>
+```{r}
+plot(density(Strength), main = 'KDE', xlab = 'Strength')
+```
+
+<b> 이변량 커널밀도함수 </b>
+```{r}
+density1 <- kde2d(Cement, Strength, n = 100)
+image(density1, xlab = 'Cement', ylab = 'Strength')
+```
+
+<b> 보자기 플롯 </b>
+
+```{r}
+bagplot(x = Cement, y = Strength, show.whiskers = F)
+```
+
+<b> 산점도 평활 </b>
+```{r}
+s1 <- lowess(Strength ~ Cement, f = 1/5)
+plot(Strength ~ Cement)
+lines(s1, col = 'red')
+```
+
+## 다변량 자료분석 Multi Variable EDA
+```{r}
+setwd("C:/Users/friend/Documents/working directory/eda")
+trip <- read.csv('관광.csv', header = T)
+head(trip)
+```
+
+2013년부터 2016년 사이에 수집된 여행자료
+
+지역: 서울, 부산, 경기, 강원, 제주
+
+성별 : 남성, 여성
+
+빈도수: 각 지역 방문 인원 수
+
+여행횟수
+
+여행일수
+
+지출액: 1인 평균 지출액
+
+<b> 별그림 </b>
+
+```{r}
+trip.male <- trip %>%
+  filter(성별 == '남자' & 년도 == '2013')
+
+rownames(trip.male) <- trip.male$지역
+stars(trip.male[1:5,4:7], scale = T, col.stars = 2:9, draw.segments = T, full = F, key.loc = c(6,2), main = '남성(2013년)의 여행 경향')
+```
+
+<b> 산점도 행렬 </b>
+```{r}
+pairs(concrete)
+```
+
+<b> 주성분 분석 </b>
+
+```{r}
+setwd("C:/Users/friend/Documents/working directory/eda")
+crime <- read.csv('서울지역 범죄자료2015-2016.csv', header = T)
+head(crime)
+```
+
+```{r}
+rownames(crime) <- crime$지역
+pca <- prcomp(crime[,2:4], scale = T)
+```
+
+```{r}
+biplot(pca, expand = 1, cex = .9, main = 'Principal Component Space')
+```
+
+```{r}
+screeplot(pca, type = 'lines')
+```
+
+<b> 조건부 플롯 </b>
+```{r}
+day<-equal.count(concrete$Day, number=4, overlap=0)
+xyplot(concrete$Cement~concrete$Strength | day)
+```
+<b> 비모수적 다중회귀 </b>
+LOESS는 다변량 자료에 대한 산점도 평활기법으로 국소적 가중법을 이용해 국소영역까지 선형적 회귀함수를 적합하는 방법이다.
