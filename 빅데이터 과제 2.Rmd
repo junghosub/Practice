@@ -1,0 +1,77 @@
+---
+title: "빅데이터 2주차 과제"
+author : '201511995 정호섭'
+output: html_document
+---
+
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+# 필요한 라이브러리 다운
+library(tidyverse)
+```
+
+# 문제
+
+mpg 데이터는 연비를 나타내는 변수가 hwy(고속도로 연비), city (도시 연비) 두 종류로 분리되어 있습니다. 두 변수를 각각 활용하는 대신 하나의 통합 연비 변수를 만들어 분석하려 합니다.
+
+### Q1. cty와 hwy를 더한 '합산 연비 변수'를 추가하세요.
+
+```{r}
+# 데이터 살펴보기
+mpg <- as.data.frame(ggplot2::mpg)
+head(mpg)
+```
+
+```{r}
+# 합산 연비 변수 생성하기
+mpg$total <- mpg$cty + mpg$hwy
+head(mpg)
+```
+
+
+### Q2. 앞에서 만든' 합산 연비 변수'를 2로 나눠 '평균 연비 변수'를 추가하세요.
+```{r}
+# 평균 연비 변수
+mpg$mean <- mpg$total / 2
+head(mpg)
+```
+
+### Q3. '평균 연비 변수'가 가장 높은 자동차 3종의 데이터를 출력하세요.
+
+```{r}
+# 평균 연비 변수가 가장 높은 자동차 3종 보기.
+mpg %>%
+  select(manufacturer, model, year, total, mean) %>%
+  group_by(model) %>%
+  arrange(desc(mean)) %>%
+  head(3)
+```
+문제의 3종이라는 것이 제조사를 말하는건지, 모델명을 말하는 것인지는 확실하지 않다. 연식과 기통에 따라 차이는 있지만  폭스바겐사의 new beatle, jetta이 평균 연비 변수가 가장 높았던 것으로 파악됐다. 
+
+### Q4. 1~3번 문제를 해결할 수 있는 하나로 연결된 dplyr 구문을 만들어 출력하세요.
+
+```{r}
+# 파이프라인을 통해 하나로 연결된 dplyr 구문 만들기
+mpg %>%
+  mutate(total = cty + hwy,  # mutate로 파생 변수 생성
+            mean = total / 2) %>%
+  select(manufacturer, model, total, mean) %>% # 제조사, 모델명, 합산 연비, 평균 연비만 봄
+  group_by(model) %>% # 모델에 따라 group_by 해줌
+  arrange(desc(mean)) %>% # 평균 연비 변수가 높았던 순서로 보기 위해 arrange() 사용
+  head(3) # 3행만 봄
+```
+
+앞서 구했던 답과 일치하는 것으로 보아 dplyr 구문으로 잘 구현한 것 같다.
+
+```{r}
+mpg %>%
+  group_by(manufacturer, model) %>%
+  mutate(total = cty + hwy,
+            mean = total / 2) %>%
+  summarise(mean_by_model = mean(mean)) %>%
+  arrange(desc(mean_by_model)) %>%
+  head(3)
+```
+
+또는 위와 같은 방법으로 제조사, 모델에 따라 평균 연비를 구한 후, 확인할 수도 있다. 위와 같은 방법을 확인해보면 폭스바겐사의 뉴비틀 뿐이 아닌 도요타, 혼다 등 일본사의 차량도 연비가 좋은 것으로 확인되었다.
