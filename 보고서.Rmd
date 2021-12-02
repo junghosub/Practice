@@ -1,0 +1,276 @@
+---
+title: "Benjamin과 Fumiko의 아티클 비교 분석"
+author: "201511995 정호섭"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+### 분석 목적
+중국인 기자 Benjamin Kang Lim과 일본인 기자 Fumiko Fujisaki의 아티클을 텍스트 마이닝을 통해 비교·분석할 것입니다. 이를 통해 Benjamin Kang Lim과 Fumiko Fujisaki이 쓴 아티클의 주요 토픽과 키워드들을 확인할 수 있을 것입니다. 나아가 본 분석에서는 ggplot에서 제공하는 시각화 기법을 함께 사용해볼 것입니다.
+
+---
+
+### 분석 데이터
+UCI Machine Learing에서 제공하는 Reuter_50_50를 다운하여 사용했습니다. 이 중에서 동북아시아 출신인 Benjamin Kang Lim과 Fumiko Fujisaki 기자를 선택하였습니다. Benjamin Kang Lim, Fumiko Fujisaki의 데이터는 모두 50개의 txt 파일로 구성되어있습니다. Benjamin Kang Lim의 경우, 154kb이고, Fumiko Fujisaki의 경우, 166kb입니다.
+
+---
+
+### 분석 방법
+주어진 문서에 대해 각 문서에 어떤 토픽들이 존재하는지에 대한 확률적 토픽 모델 기법인 LDA 모델을 사용했습니다. LDA 모델을 사용한다면 주어진 문서에서 발견된 단어 수의 분포를 분석함으로써 해당 문서가 어떤 주제들을 함께 다루고 있을지를 예측할 수 있게 됩니다.
+
+---
+
+분석 절차는 다음과 같습니다. 첫째, 분석에 활용할 데이터를 불러온 후, corpus를 생성합니다. tm 패키지를 사용해 전처리 합니다. 이를 통해 분석에 더 용이한 corpus를 만듭니다. 둘째, 아티클 중에서 가장 많이 나오는 키워드 10개를 시각화할 것입니다. 이를 통해 기자가 주로 어떤 토픽과 관련된 아티클을 작성하는지 파악할 수 있습니다. 셋째, LDA 모델을 사용하여 토픽별로 가장 주요한 키워드를 확인할 것입니다. 넷째, 문서와 단어들이 해당 토픽에 포함될 확률을 확인할 것입니다.
+
+위와 같은 4가지 절차를 거쳐 Benjamin Kang Lim과 Fumiko Fujisaki의 아티클을 분석,비교해볼 것입니다.
+
+---
+
+#### 1. Benjamin Kang Lim의 아티클 분석
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(tidytext)
+library(SnowballC)
+library(tm)
+library(topicmodels)
+```
+
+```{r}
+# benjamin Kang Lim 데이터 불러오기
+benjamin = DirSource(directory = "~/working directory/eda/BenjaminKangLim")
+```
+
+먼저 Benjamin Kang Lim의 아티클을 분석해보겠습니다.
+
+```{r}
+length(benjamin)
+```
+Benjamin의 아티클을 총 50개 txt 파일로 구성되어 있습니다. 이를 corpus로 변환하고 전처리 한 후, 어떤 단어들의 빈도 수가 가장 높았나 확인해보겠습니다.
+
+```{r}
+# corpus로 변환
+corpus = VCorpus(benjamin)
+
+# 전처리
+corpus = tm_map(corpus, stripWhitespace)
+corpus = tm_map(corpus, tolower)
+corpus = tm_map(corpus, removePunctuation)
+corpus = tm_map(corpus, removeNumbers)
+mystopword = c(stopwords('english'), 'said', 'say', 'will')
+corpus = tm_map(corpus, removeWords, mystopword)
+corpus = tm_map(corpus, stemDocument)
+corpus = tm_map(corpus, PlainTextDocument)
+dtm = DocumentTermMatrix(corpus)
+```
+
+```{r}
+# Benjamin의 아티클 중 가장 많이 나온 단어 10개 확인해보기
+df = as.data.frame(as.matrix(dtm))
+
+df = as.data.frame(rowSums(t(df)))
+names(df) = 'count'
+
+# 최소한 2개 이상 나온 단어만 보기
+top10 = df %>%
+  filter(count > 2) %>%
+  arrange(desc(count)) %>%
+  head(10)
+
+# ggplot을 이용한 시각화
+top10 %>%
+  ggplot(aes(x = row.names(top10), y = count, fill = count)) +
+  geom_col() + 
+  labs(x = 'Word', title = 'Benjamin Kang LIm')
+```
+
+주로 중국과 대만에서 기자 활동을 했던만큼 Benjamin의 아티클에는 중국 관련 키워드가 많이 등장했습니다.다만 전처리 과정에서 beijing과 같이 어미가 삭제되어 기존의 뜻을 파악하기 힘들다는 한계점이 있습니다.
+
+---
+
+```{r}
+# lda 모델 생성 (k = 5)                        
+lda.model <- LDA(dtm, k = 5, method = 'Gibbs', control = list(alpha =0.1, seed = 0))
+ap_topics <- tidy(lda.model, matrix = "beta")
+ap_topics
+
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 10) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+위 그래프는 토픽별로 주요한 키워드를 나타낸 그래프입니다. Benjamin은 중국과 대만에서 기자 생활을 오래 했습니다. 이러한 이유로 대부분의 토픽은 중국과 관련된 키워드입니다. 상대적으로 눈에 띄는 토픽은 두 번째 토픽입니다. 달라이 라마, 티벳 같은 키워드를 보아 티벳과 관련된 아티클로 보입니다.
+
+---
+
+```{r}
+# 해당 문서가 각 토픽에 포함될 확률을 확인해보기
+theta <- posterior(lda.model)$topics
+theta <- round(as.data.frame(theta), digits = 3)
+names(theta) <- paste('Topic ', 1:5, sep = '')
+row.names(theta) <- paste('Doc ', 1:50, sep = '')
+theta
+```
+
+LDA 모델을 사용하여 각 문서가 해당 토픽에 포함될 확률값을 구해줍니다. 이때 확률값이 가장 높은 토픽으로 결정됩니다.
+```{r}
+# 단어들을 통해 토픽에 포함될 확률을 확인해보기
+phi = posterior(lda.model)$terms
+phi = round(phi, 3)
+t_phi = as.data.frame(t(phi))
+names(t_phi) = paste('Topic ', 1:5)
+dim(t_phi) 
+```
+
+단어의 개수는 2,574개입니다. 토픽은 LDA 모델을 통해 5개를 지정했습니다. 10개의 표본을 통해 간략하게 확인해보겠습니다.
+
+```{r}
+# 10개의 표본을 통해 확인해보기
+t_phi[sample(nrow(t_phi),10), ]
+```
+
+이처럼 주어진 문서에서 발견된 단어를 분석함으로써 해당 문서가 어떤 주제들을 함께 다루고 있을지를 예측할 수 있게 됩니다.
+
+```{r}
+# 각 문서별로 예측된 토픽
+topics = as.data.frame(topics(lda.model))
+row.names(topics) = paste('Doc ', 1:50, sep = '')
+names(topics) = 'expected'
+head(topics, 10)
+```
+
+
+---
+
+
+#### 2. Fumiko Fujisaki의 아티클 분석
+```{r}
+fujisaki = DirSource(directory = "~/working directory/eda/FumikoFujisaki")
+```
+
+다음엔 Fumiko Fujisaki의 아티클을 분석해보겠습니다.
+
+```{r}
+length(fujisaki)
+```
+Fujisaki의 아티클 또한 총 50개 txt 파일로 구성되어 있습니다. 이를 corpus로 변환하고 전처리 한 후, 어떤 단어들의 빈도 수가 가장 높았나 확인해보겠습니다.
+
+```{r}
+# corpus로 변환
+corpus = VCorpus(fujisaki)
+
+# 전처리
+corpus = tm_map(corpus, stripWhitespace)
+corpus = tm_map(corpus, tolower)
+corpus = tm_map(corpus, removePunctuation)
+corpus = tm_map(corpus, removeNumbers)
+mystopword = c(stopwords('english'), 'said', 'say', 'will')
+corpus = tm_map(corpus, removeWords, mystopword)
+corpus = tm_map(corpus, stemDocument)
+corpus = tm_map(corpus, PlainTextDocument)
+dtm = DocumentTermMatrix(corpus)
+```
+
+```{r}
+# Fujisaki 아티클 중 가장 많이 나온 단어 10개 확인해보기
+df = as.data.frame(as.matrix(dtm))
+
+df = as.data.frame(rowSums(t(df)))
+names(df) = 'count'
+
+# 최소한 2개 이상 나온 단어만 보기
+top10 = df %>%
+  filter(count > 2) %>%
+  arrange(desc(count)) %>%
+  head(10)
+
+# ggplot을 이용한 시각화
+top10 %>%
+  ggplot(aes(x = row.names(top10), y = count, fill = count)) +
+  geom_col() + 
+  labs(x = 'Word', title = 'Fumiko Fujisaki')
+```
+
+Fumiko Fujisaki의 아티클에는 bank, finance, market, yen처럼 경제에 관한 키워드들이 많이 등장하고 있습니다. 이를 통해 Fumiko Fujisaki는 주로 경제 관련 아티클을 작성한다고 판단할 수 있습니다.
+
+---
+
+```{r}
+# lda 모델 생성 (k = 5)                        
+lda.model <- LDA(dtm, k = 5, method = 'Gibbs', control = list(alpha =0.1, seed = 0))
+ap_topics <- tidy(lda.model, matrix = "beta")
+ap_topics
+
+ap_top_terms <- ap_topics %>%
+  group_by(topic) %>%
+  slice_max(beta, n = 10) %>% 
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+5개의 토픽 모두 경제와 관련된 토픽으로 보입니다. 1번은 market, stock, fund, asset 등의 키워드들이 보이는 것으로 보아 주식 시장과 관련된 토픽인 것 같습니다. 2번은 bank, loan과 관련된 키워드들이 나오는 것으로 보아 은행 대출과 관련된 토픽인 것 같습니다. 3번은  real, estate가 함께 보이는 것으로 보아 부동산과 관련된 토픽들이 아닐까 생각됩니다. 4번은 정확한 주제를 판별하기 어려워보입니다. 5번은 insure, life company, firm 등의 키워드들이 등장하는 것으로 보아 보험과 관련된 토픽이 아닐까 생각됩니다.
+
+---
+
+
+```{r}
+# 해당 문서가 각 토픽에 포함될 확률을 확인해보기
+theta <- posterior(lda.model)$topics
+theta <- round(as.data.frame(theta), digits = 3)
+names(theta) <- paste('Topic ', 1:5, sep = '')
+row.names(theta) <- paste('Doc ', 1:50, sep = '')
+theta
+```
+
+LDA 모델을 사용하여 각 문서가 해당 토픽에 포함될 확률값을 구해줍니다.
+
+```{r}
+# 단어들을 통해 토픽에 포함될 확률을 확인해보기
+phi = posterior(lda.model)$terms
+phi = round(phi, 3)
+t_phi = as.data.frame(t(phi))
+names(t_phi) = paste('Topic ', 1:5)
+dim(t_phi) 
+```
+
+단어의 개수는 2,003개입니다. 토픽은 LDA 모델을 통해 5개를 지정했습니다. 10개의 표본을 통해 간략하게 확인해보겠습니다.
+
+```{r}
+# 10개의 표본을 통해 확인해보기
+t_phi[sample(nrow(t_phi),10), ]
+```
+
+```{r}
+# 각 문서별로 예측된 토픽
+topics = as.data.frame(topics(lda.model))
+row.names(topics) = paste('Doc ', 1:50, sep = '')
+names(topics) = 'expected'
+head(topics, 10)
+```
+
+---
+
+#### 분석 결과
+
+지금까지 텍스트 마이닝을 통해 Benjamin Kang Lim과 Fumiko Fujisaki의 아티클들을 분석해보았습니다. Benjamin Kang Lim의 경우, 각 토픽의 키워드들이 비슷하게 나왔습니다. 이러한 이유로 토픽별 차이점을 확인하기 힘들었습니다. 반면 Fumiko Fujisaki의 경우, 주식 시장, 은행 대출, 부동산, 보험 등 토픽별로 다양한 키워드들이 나오는 것을 확인할 수 있었고, 토픽별 주제를 파악하기 쉬웠습니다. 하지만 corpus를 생성하고 전처리하는 과정에서 보완해야할 점이 많은 것으로 보였습니다. 특히 어미가 없어지기 때문에 단어의 정확한 의미를 파악하기 힘들었습니다. 차후 분석에서 전처리 과정을 보완한다면 보다 나은 분석이 될 것 같습니다.
+
+---
